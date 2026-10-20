@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>學院積分沙漏系統 - 班級經營團體競賽</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Canvas Confetti -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@600;800&family=Noto+Serif+TC:wght@600;900&display=swap');
+        
+        body {
+            font-family: 'Noto Serif TC', serif;
+            background: radial-gradient(circle at center, #1e1b2e 0%, #0d0b14 100%);
+            min-height: 100vh;
+            color: #e2e8f0;
+        }
+
+        .glass-panel {
+            background: rgba(30, 27, 46, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(212, 175, 55, 0.25);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
+        }
+
+        .gold-border {
+            border: 2px solid #d4af37;
+            box-shadow: 0 0 10px rgba(212, 175, 55, 0.3);
+        }
+
+        .gold-text {
+            color: #f3e5ab;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8), 0 0 8px rgba(212, 175, 55, 0.4);
+        }
+
+        /* 沙漏外形玻璃質感 */
+        .hourglass-container {
+            position: relative;
+            width: 100%;
+            height: 280px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 3px solid rgba(212, 175, 55, 0.4);
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.8), 0 4px 15px rgba(0,0,0,0.5);
+        }
+
+        .hourglass-container::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: linear-gradient(135deg, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0) 40%, rgba(255,255,255,0) 60%, rgba(255,255,255,0.05) 100%);
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        .btn-gold {
+            background: linear-gradient(185deg, #d4af37 0%, #aa7c11 100%);
+            color: #1a0f00;
+            font-weight: bold;
+            transition: all 0.2s;
+            border: 1px solid #ffe89c;
+        }
+
+        .btn-gold:hover {
+            background: linear-gradient(185deg, #e5be48 0%, #bb8d22 100%);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(212, 175, 55, 0.4);
+        }
+
+        .btn-gold:active {
+            transform: translateY(1px);
+        }
+
+        /* 客製化滾動條 */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(15, 13, 25, 0.6);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(212, 175, 55, 0.4);
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(212, 175, 55, 0.7);
+        }
+    </style>
+</head>
+<body class="p-4 md:p-6 flex flex-col justify-between min-h-screen">
+
+    <div>
+        <!-- 頂部標題列 -->
+        <header class="max-w-7xl mx-auto glass-panel rounded-2xl p-4 mb-6 flex flex-col md:flex-row justify-between items-center border-b-2 border-amber-500/40">
+            <div class="flex items-center space-x-3 mb-3 md:mb-0">
+                <div class="w-12 h-12 rounded-full bg-amber-500/20 border border-amber-400 flex items-center justify-center text-amber-300 text-2xl shadow-lg">
+                    <i class="fa-solid fa-hourglass-half"></i>
+                </div>
+                <div>
+                    <h1 class="font-serif text-2xl md:text-3xl font-bold tracking-wider gold-text" id="appTitle">
+                        學院積分沙漏系統
+                    </h1>
+                    <p class="text-xs text-amber-200/70 mt-0.5" id="appSubtitle">
+                        House Points Hourglasses - 班級經營團體競賽工具
+                    </p>
+                </div>
+            </div>
+
+            <!-- 控制按鈕區 -->
+            <div class="flex flex-wrap items-center gap-2">
+                <button onclick="openBatchModal()" class="px-3 py-2 rounded-lg bg-indigo-900/60 hover:bg-indigo-800 text-indigo-200 border border-indigo-500/40 text-xs md:text-sm font-semibold transition">
+                    <i class="fa-solid fa-users mr-1"></i> 全體一鍵加分
+                </button>
+                <button onclick="togglePresenterMode()" class="px-3 py-2 rounded-lg bg-amber-900/40 hover:bg-amber-800/60 text-amber-200 border border-amber-500/40 text-xs md:text-sm font-semibold transition">
+                    <i class="fa-solid fa-expand mr-1"></i> 全螢幕展示
+                </button>
+                <button onclick="openSettingsModal()" class="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/40 text-xs md:text-sm font-semibold transition">
+                    <i class="fa-solid fa-gear mr-1"></i> 系統設定
+                </button>
+            </div>
+        </header>
+
+        <!-- 主要沙漏展示區 (5組) -->
+        <main class="max-w-7xl mx-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6" id="groupsContainer">
+            <!-- 由 JavaScript 動態生成 5 個組別卡片 -->
+        </main>
+    </div>
+
+    <!-- 底部：紀錄與快速操作面板 -->
+    <footer class="max-w-7xl mx-auto w-full glass-panel rounded-2xl p-4 mt-auto">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            <!-- 快速加扣分操作區 -->
+            <div class="lg:col-span-2 border-r-0 lg:border-r border-slate-700/60 pr-0 lg:pr-6">
+                <h3 class="text-sm font-bold text-amber-300 mb-3 flex items-center">
+                    <i class="fa-solid fa-bolt mr-2"></i> 快速控制面板
+                </h3>
+                
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
+                    <!-- 選擇組別 -->
+                    <div>
+                        <label class="block text-xs text-slate-400 mb-1">目標組別</label>
+                        <select id="quickGroupSelect" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-amber-500">
+                            <!-- JS 動態生成 -->
+                        </select>
+                    </div>
+
+                    <!-- 選擇/輸入事由 -->
+                    <div class="md:col-span-2">
+                        <label class="block text-xs text-slate-400 mb-1">加扣分事由（可自訂或由右方點選）</label>
+                        <div class="flex gap-2">
+                            <select id="reasonSelect" onchange="syncReasonInput()" class="bg-slate-900 border border-slate-700 rounded-lg px-2 py-2 text-xs text-slate-300 focus:outline-none focus:border-amber-500">
+                                <option value="">常用事由...</option>
+                            </select>
+                            <input type="text" id="quickReasonInput" placeholder="請輸入加扣分原因..." class="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-amber-500">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 常用事由快捷標籤 -->
+                <div class="flex flex-wrap gap-1.5 mb-4" id="reasonQuickTags">
+                    <!-- JS 動態生成標籤 -->
+                </div>
+
+                <!-- 分數按鈕群 -->
+                <div class="flex flex-wrap gap-2 items-center justify-between">
+                    <div class="flex flex-wrap gap-2">
+                        <button onclick="applyQuickPoints(1)" class="px-3 py-1.5 rounded-lg bg-emerald-900/60 hover:bg-emerald-800 text-emerald-200 border border-emerald-500/40 font-bold text-sm transition">+1 分</button>
+                        <button onclick="applyQuickPoints(5)" class="px-3 py-1.5 rounded-lg bg-emerald-800 hover:bg-emerald-700 text-emerald-100 border border-emerald-400/50 font-bold text-sm transition">+5 分</button>
+                        <button onclick="applyQuickPoints(10)" class="px-3 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white border border-emerald-300 font-bold text-sm transition">+10 分</button>
+                        
+                        <div class="h-6 w-px bg-slate-700 mx-1"></div>
+
+                        <button onclick="applyQuickPoints(-1)" class="px-3 py-1.5 rounded-lg bg-rose-900/60 hover:bg-rose-800 text-rose-200 border border-rose-500/40 font-bold text-sm transition">-1 分</button>
+                        <button onclick="applyQuickPoints(-5)" class="px-3 py-1.5 rounded-lg bg-rose-800 hover:bg-rose-700 text-rose-100 border border-rose-400/50 font-bold text-sm transition">-5 分</button>
+                    </div>
+
+                    <!-- 自訂分數 -->
+                    <div class="flex items-center gap-1">
+                        <input type="number" id="customPointsInput" placeholder="自訂" class="w-16 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-sm text-center text-slate-200 focus:outline-none focus:border-amber-500">
+                        <button onclick="applyCustomPoints(true)" class="px-2.5 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-xs">加分</button>
+                        <button onclick="applyCustomPoints(false)" class="px-2.5 py-1.5 rounded-lg bg-rose-700 hover:bg-rose-600 text-white font-bold text-xs">扣分</button>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- 歷史操作紀錄 -->
+            <div class="flex flex-col h-full justify-between">
+                <div>
+                    <div class="flex justify-between items-center mb-2">
+                        <h3 class="text-sm font-bold text-amber-300 flex items-center">
+                            <i class="fa-solid fa-clock-rotate-left mr-2"></i> 最新異動紀錄
+                        </h3>
+                        <button onclick="undoLastAction()" class="text-xs text-amber-400 hover:text-amber-300 underline flex items-center">
+                            <i class="fa-solid fa-rotate-left mr-1"></i> 復原上一筆 (Undo)
+                        </button>
+                    </div>
+                    <div id="historyList" class="max-h-36 overflow-y-auto space-y-1.5 pr-1 text-xs">
+                        <!-- JS 動態生成紀錄列表 -->
+                    </div>
+                </div>
+
+                <div class="pt-3 border-t border-slate-800 mt-2 flex justify-between items-center text-[11px] text-slate-400">
+                    <span>初始預設：50 分｜目標上限：300 分</span>
+                    <button onclick="resetAllScoresConfirm()" class="text-rose-400 hover:text-rose-300 transition">
+                        <i class="fa-solid fa-arrow-rotate-right mr-1"></i> 重置全班分數
+                    </button>
+                </div>
+            </div>
+
+        </div>
+    </footer>
+
+    <!-- Modal 1: 系統設定 -->
+    <div id="settingsModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="glass-panel gold-border rounded-2xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center mb-4 border-b border-amber-500/30 pb-3">
+                <h2 class="text-lg font-bold gold-text flex items-center">
+                    <i class="fa-solid fa-sliders mr-2"></i> 系統設定與組別編輯
+                </h2>
+                <button onclick="closeSettingsModal()" class="text-slate-400 hover:text-white text-xl">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div class="space-y-4 text-sm">
+                <!-- 基本參數 -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-900/50 p-3 rounded-xl border border-slate-800">
+                    <div>
+                        <label class="block text-xs text-slate-400 mb-1">預設起始分數（新賽期/重置時）</label>
+                        <input type="number" id="settingInitialScore" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-slate-200">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-slate-400 mb-1">預設滿分目標（上限分值）</label>
+                        <input type="number" id="settingTargetScore" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-slate-200">
+                    </div>
+                </div>
+
+                <!-- 5 個組別設定 -->
+                <div>
+                    <h3 class="font-bold text-amber-300 mb-2">組別名稱與顏色設定</h3>
+                    <div id="groupSettingsContainer" class="space-y-2">
+                        <!-- JS 生成 5 組控制項 -->
+                    </div>
+                </div>
+
+                <!-- 常用事由管理 -->
+                <div>
+                    <h3 class="font-bold text-amber-300 mb-2">快捷事由管理（以逗號分隔）</h3>
+                    <textarea id="settingReasons" rows="2" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-slate-200 focus:outline-none focus:border-amber-500"></textarea>
+                </div>
+            </div>
+
+            <div class="flex justify-end gap-3 mt-6 pt-3 border-t border-slate-800">
+                <button onclick="closeSettingsModal()" class="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold">取消</button>
+                <button onclick="saveSettings()" class="px-5 py-2 rounded-lg btn-gold text-xs font-bold">儲存設定</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal 2: 全體一鍵加分 -->
+    <div id="batchModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="glass-panel gold-border rounded-2xl max-w-md w-full p-6">
+            <div class="flex justify-between items-center mb-4 border-b border-amber-500/30 pb-3">
+                <h2 class="text-lg font-bold gold-text flex items-center">
+                    <i class="fa-solid fa-users mr-2"></i> 全體組別一鍵加分
+                </h2>
+                <button onclick="closeBatchModal()" class="text-slate-400 hover:text-white text-xl">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div class="space-y-3">
+                <div>
+                    <label class="block text-xs text-slate-400 mb-1">加分點數</label>
+                    <input type="number" id="batchPointsInput" value="1" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-slate-200 font-bold text-center">
+                </div>
+                <div>
+                    <label class="block text-xs text-slate-400 mb-1">事由說明</label>
+                    <input type="text" id="batchReasonInput" value="全班表現優良" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-slate-200 text-sm">
+                </div>
+            </div>
+
+            <div class="flex justify-end gap-3 mt-6">
+                <button onclick="closeBatchModal()" class="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold">取消</button>
+                <button onclick="executeBatchPoints()" class="px-5 py-2 rounded-lg btn-gold text-xs font-bold">執行全體加分</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 預設資料結構
+        const DEFAULT_CONFIG = {
+            initialScore: 50,
+            targetScore: 300,
+            reasons: ["課堂發問", "作業優良", "團隊合作", "秩序佳", "回答正確", "秩序欠佳", "未帶用具"],
+            groups: [
+                { id: 1, name: "第一組", color: "#ef4444", icon: "fa-lion", score: 50 },
+                { id: 2, name: "第二組", color: "#eab308", icon: "fa-badger-honey", score: 50 },
+                { id: 3, name: "第三組", color: "#3b82f6", icon: "fa-eagle", score: 50 },
+                { id: 4, name: "第四組", color: "#10b981", icon: "fa-snake", score: 50 },
+                { id: 5, name: "第五組", color: "#a855f7", icon: "fa-dragon", score: 50 }
+            ]
+        };
+
+        let state = JSON.parse(localStorage.getItem('class_hourglass_data')) || DEFAULT_CONFIG;
+        let historyLogs = JSON.parse(localStorage.getItem('class_hourglass_logs')) || [];
+        let particleAnimations = {};
+
+        // 初始化
+        window.addEventListener('DOMContentLoaded', () => {
+            renderGroups();
+            renderQuickControls();
+            renderHistory();
+            initCanvases();
+        });
+
+        // 儲存至 LocalStorage
+        function saveData() {
+            localStorage.setItem('class_hourglass_data', JSON.stringify(state));
+            localStorage.setItem('class_hourglass_logs', JSON.stringify(historyLogs));
+        }
+
+        // 渲染主畫面 5 個組別卡片
+        function renderGroups() {
+            const container = document.getElementById('groupsContainer');
+            container.innerHTML = '';
+
+            state.groups.forEach(group => {
+                const percentage = Math.min(100, Math.max(0, (group.score / state.targetScore) * 100)).toFixed(1);
+                
+                const card = document.createElement('div');
+                card.className = "glass-panel rounded-2xl p-4 flex flex-col justify-between items-center relative group hover:border-amber-400/60 transition-all duration-300";
+                
+                card.innerHTML = `
+                    <div class="w-full text-center mb-2">
+                        <div class="flex items-center justify-between px-1">
+                            <span class="text-xs font-bold text-slate-400">#0${group.id}</span>
+                            <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-800 text-amber-300 border border-amber-500/30">
+                                上限 ${state.targetScore}
+                            </span>
+                        </div>
+                        <h2 class="text-lg font-bold mt-1 text-slate-100 flex items-center justify-center gap-2">
+                            <span class="w-3 h-3 rounded-full inline-block" style="background-color: ${group.color}"></span>
+                            ${group.name}
+                        </h2>
+                    </div>
+
+                    <!-- 沙漏 Canvas 容器 -->
+                    <div class="hourglass-container my-1">
+                        <canvas id="canvas_group_${group.id}"></canvas>
+                        <div class="absolute bottom-2 left-0 right-0 text-center pointer-events-none z-20">
+                            <span class="text-2xl font-extrabold gold-text tracking-wider">${group.score}</span>
+                            <span class="text-xs text-amber-200/70 block">分</span>
+                        </div>
+                    </div>
+
+                    <!-- 進度條 -->
+                    <div class="w-full mt-2">
+                        <div class="flex justify-between text-[11px] text-slate-400 mb-1">
+                            <span>進度</span>
+                            <span>${percentage}%</span>
+                        </div>
+                        <div class="w-full bg-slate-900 rounded-full h-2 overflow-hidden border border-slate-700">
+                            <div class="h-full transition-all duration-500 rounded-full" style="width: ${percentage}%; background-color: ${group.color}"></div>
+                        </div>
+                    </div>
+
+                    <!-- 個別快速微調按鈕 -->
+                    <div class="grid grid-cols-4 gap-1 w-full mt-3 pt-2 border-t border-slate-800/80">
+                        <button onclick="addScore(${group.id}, 1, '課堂表現')" class="bg-slate-800 hover:bg-slate-700 text-emerald-400 font-bold text-xs py-1 rounded transition">+1</button>
+                        <button onclick="addScore(${group.id}, 5, '課堂表現')" class="bg-slate-800 hover:bg-slate-700 text-emerald-300 font-bold text-xs py-1 rounded transition">+5</button>
+                        <button onclick="addScore(${group.id}, -1, '課堂調整')" class="bg-slate-800 hover:bg-slate-700 text-rose-400 font-bold text-xs py-1 rounded transition">-1</button>
+                        <button onclick="triggerWin(${group.id})" class="bg-amber-900/40 hover:bg-amber-800 text-amber-300 font-bold text-xs py-1 rounded transition" title="頒發冠軍彩帶">
+                            <i class="fa-solid fa-trophy"></i>
+                        </button>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+
+            updateGroupSelectOptions();
+        }
+
+        // 渲染快速選單與標籤
+        function renderQuickControls() {
+            // 常用事由下拉選單
+            const reasonSelect = document.getElementById('reasonSelect');
+            reasonSelect.innerHTML = '<option value="">常用事由...</option>';
+            state.reasons.forEach(r => {
+                reasonSelect.innerHTML += `<option value="${r}">${r}</option>`;
+            });
+
+            // 常用事由快捷標籤
+            const quickTags = document.getElementById('reasonQuickTags');
+            quickTags.innerHTML = '';
+            state.reasons.forEach(r => {
+                const btn = document.createElement('button');
+                btn.className = "text-[11px] bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-slate-700 px-2 py-0.5 rounded-full transition";
+                btn.innerText = r;
+                btn.onclick = () => {
+                    document.getElementById('quickReasonInput').value = r;
+                };
+                quickTags.appendChild(btn);
+            });
+        }
+
+        // 更新組別下拉選項
+        function updateGroupSelectOptions() {
+            const select = document.getElementById('quickGroupSelect');
+            select.innerHTML = '<option value="all">【全體組別】</option>';
+            state.groups.forEach(g => {
+                select.innerHTML += `<option value="${g.id}">${g.name} (目前: ${g.score}分)</option>`;
+            });
+        }
+
+        // 同步事由下拉與輸入框
+        function syncReasonInput() {
+            const val = document.getElementById('reasonSelect').value;
+            if (val) {
+                document.getElementById('quickReasonInput').value = val;
+            }
+        }
+
+        // 分數變更核心邏輯
+        function addScore(groupId, delta, reason = "") {
+            const finalReason = reason || document.getElementById('quickReasonInput').value || (delta > 0 ? "課堂獎勵" : "課堂調整");
+
+            if (groupId === "all") {
+                state.groups.forEach(g => {
+                    g.score = Math.max(0, g.score + delta);
+                });
+                historyLogs.unshift({
+                    time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
+                    groupName: "全體組別",
+                    delta: delta,
+                    reason: finalReason
+                });
+            } else {
+                const group = state.groups.find(g => g.id === parseInt(groupId));
+                if (!group) return;
+                
+                const oldScore = group.score;
+                group.score = Math.max(0, group.score + delta);
+                
+                historyLogs.unshift({
+                    time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
+                    groupName: group.name,
+                    delta: delta,
+                    reason: finalReason,
+                    groupId: group.id,
+                    prevScore: oldScore
+                });
+
+                // 若達到滿分目標觸發彩帶
+                if (group.score >= state.targetScore && oldScore < state.targetScore) {
+                    triggerWin(group.id);
+                }
+            }
+
+            if (historyLogs.length > 20) historyLogs.pop();
+
+            saveData();
+            renderGroups();
+            renderHistory();
+        }
+
+        // 快速按鈕加減分
+        function applyQuickPoints(delta) {
+            const targetGroupId = document.getElementById('quickGroupSelect').value;
+            addScore(targetGroupId, delta);
+        }
+
+        // 自訂分數加減
+        function applyCustomPoints(isPositive) {
+            const targetGroupId = document.getElementById('quickGroupSelect').value;
+            const ptsInput = document.getElementById('customPointsInput');
+            let val = parseInt(ptsInput.value);
+            if (isNaN(val) || val <= 0) return;
+
+            const delta = isPositive ? val : -val;
+            addScore(targetGroupId, delta);
+            ptsInput.value = '';
+        }
+
+        // 渲染歷史紀錄
+        function renderHistory() {
+            const historyList = document.getElementById('historyList');
+            historyList.innerHTML = '';
+
+            if (historyLogs.length === 0) {
+                historyList.innerHTML = '<div class="text-slate-500 text-center py-4">尚無異動紀錄</div>';
+                return;
+            }
+
+            historyLogs.slice(0, 8).forEach(log => {
+                const isPos = log.delta > 0;
+                const badgeClass = isPos ? 'bg-emerald-900/60 text-emerald-300 border-emerald-500/30' : 'bg-rose-900/60 text-rose-300 border-rose-500/30';
+                
+                const item = document.createElement('div');
+                item.className = "flex justify-between items-center bg-slate-900/60 p-1.5 rounded border border-slate-800";
+                item.innerHTML = `
+                    <div class="flex items-center gap-2">
+                        <span class="text-slate-500">${log.time}</span>
+                        <span class="font-bold text-slate-200">${log.groupName}</span>
+                        <span class="text-slate-400">(${log.reason})</span>
+                    </div>
+                    <span class="font-bold px-1.5 py-0.5 rounded border text-[10px] ${badgeClass}">
+                        ${isPos ? '+' : ''}${log.delta}
+                    </span>
+                `;
+                historyList.appendChild(item);
+            });
+        }
+
+        // 復原上一筆操作
+        function undoLastAction() {
+            if (historyLogs.length === 0) return;
+            const lastLog = historyLogs.shift();
+
+            if (lastLog.groupName === "全體組別") {
+                state.groups.forEach(g => {
+                    g.score = Math.max(0, g.score - lastLog.delta);
+                });
+            } else if (lastLog.groupId) {
+                const group = state.groups.find(g => g.id === lastLog.groupId);
+                if (group) {
+                    group.score = lastLog.prevScore !== undefined ? lastLog.prevScore : Math.max(0, group.score - lastLog.delta);
+                }
+            }
+
+            saveData();
+            renderGroups();
+            renderHistory();
+        }
+
+        // 冠軍彩帶煙火
+        function triggerWin(groupId) {
+            const group = state.groups.find(g => g.id === groupId);
+            const color = group ? group.color : '#d4af37';
+            
+            confetti({
+                particleCount: 120,
+                spread: 80,
+                origin: { y: 0.6 },
+                colors: [color, '#f3e5ab', '#ffffff']
+            });
+        }
+
+        // 重置全班分數
+        function resetAllScoresConfirm() {
+            if (confirm(`確定要將全班 5 個組別的分數重置為初始的 ${state.initialScore} 分嗎？`)) {
+                state.groups.forEach(g => {
+                    g.score = state.initialScore;
+                });
+                historyLogs.unshift({
+                    time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
+                    groupName: "全體組別",
+                    delta: 0,
+                    reason: `重置歸位 ${state.initialScore} 分`
+                });
+                saveData();
+                renderGroups();
+                renderHistory();
+            }
+        }
+
+        // HTML5 Canvas 物理流沙/寶石動畫引擎
+        function initCanvases() {
+            state.groups.forEach(group => {
+                const canvas = document.getElementById(`canvas_group_${group.id}`);
+                if (!canvas) return;
+
+                const ctx = canvas.getContext('2d');
+                let width = canvas.width = canvas.parentElement.clientWidth;
+                let height = canvas.height = canvas.parentElement.clientHeight;
+
+                // 生成幾何流沙粒子
+                let particles = [];
+                const numParticles = 40;
+                for (let i = 0; i < numParticles; i++) {
+                    particles.push({
+                        x: Math.random() * width,
+                        y: Math.random() * height,
+                        r: Math.random() * 3 + 2,
+                        speedY: Math.random() * 0.8 + 0.3,
+                        alpha: Math.random() * 0.7 + 0.3
+                    });
+                }
+
+                function draw() {
+                    ctx.clearRect(0, 0, width, height);
+
+                    // 計算高度比例 (依據當前分數 / 上限)
+                    const fillRatio = Math.min(1, Math.max(0, group.score / state.targetScore));
+                    const fillHeight = height * fillRatio;
+                    const fillTop = height - fillHeight;
+
+                    // 繪製沙漏下半部積累液體/沙堆
+                    ctx.fillStyle = group.color;
+                    ctx.globalAlpha = 0.85;
+
+                    ctx.beginPath();
+                    ctx.moveTo(0, height);
+                    ctx.lineTo(width, height);
+                    ctx.lineTo(width, fillTop);
+                    // 頂部微波浪
+                    ctx.quadraticCurveTo(width * 0.5, fillTop - 4, 0, fillTop);
+                    ctx.closePath();
+                    ctx.fill();
+
+                    // 繪製寶石粒子光澤
+                    ctx.fillStyle = '#ffffff';
+                    particles.forEach(p => {
+                        if (p.y >= fillTop) {
+                            ctx.globalAlpha = p.alpha * 0.6;
+                            ctx.beginPath();
+                            ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+                            ctx.fill();
+
+                            p.y += p.speedY;
+                            if (p.y > height) p.y = fillTop;
+                        } else {
+                            p.y = fillTop + Math.random() * (height - fillTop);
+                        }
+                    });
+
+                    ctx.globalAlpha = 1.0;
+                    requestAnimationFrame(draw);
+                }
+
+                draw();
+            });
+        }
+
+        // Modal 控制邏輯
+        function openSettingsModal() {
+            document.getElementById('settingInitialScore').value = state.initialScore;
+            document.getElementById('settingTargetScore').value = state.targetScore;
+            document.getElementById('settingReasons').value = state.reasons.join(', ');
+
+            const container = document.getElementById('groupSettingsContainer');
+            container.innerHTML = '';
+            state.groups.forEach((g, idx) => {
+                container.innerHTML += `
+                    <div class="flex items-center gap-2 bg-slate-900 p-2 rounded-lg border border-slate-800">
+                        <span class="text-xs text-slate-400 w-12">組別 ${g.id}</span>
+                        <input type="text" id="group_name_${g.id}" value="${g.name}" class="flex-1 bg-slate-800 border border-slate-700 rounded px-2 py-1 text-xs text-slate-200">
+                        <input type="color" id="group_color_${g.id}" value="${g.color}" class="w-8 h-7 bg-transparent border-0 cursor-pointer">
+                    </div>
+                `;
+            });
+
+            document.getElementById('settingsModal').classList.remove('hidden');
+        }
+
+        function closeSettingsModal() {
+            document.getElementById('settingsModal').classList.add('hidden');
+        }
+
+        function saveSettings() {
+            const initSc = parseInt(document.getElementById('settingInitialScore').value);
+            const targetSc = parseInt(document.getElementById('settingTargetScore').value);
+            const reasonsStr = document.getElementById('settingReasons').value;
+
+            if (!isNaN(initSc)) state.initialScore = initSc;
+            if (!isNaN(targetSc)) state.targetScore = targetSc;
+            if (reasonsStr) {
+                state.reasons = reasonsStr.split(/[,，]/).map(s => s.trim()).filter(Boolean);
+            }
+
+            state.groups.forEach(g => {
+                const nameIn = document.getElementById(`group_name_${g.id}`);
+                const colorIn = document.getElementById(`group_color_${g.id}`);
+                if (nameIn) g.name = nameIn.value;
+                if (colorIn) g.color = colorIn.value;
+            });
+
+            saveData();
+            renderGroups();
+            renderQuickControls();
+            initCanvases();
+            closeSettingsModal();
+        }
+
+        function openBatchModal() {
+            document.getElementById('batchModal').classList.remove('hidden');
+        }
+
+        function closeBatchModal() {
+            document.getElementById('batchModal').classList.add('hidden');
+        }
+
+        function executeBatchPoints() {
+            const pts = parseInt(document.getElementById('batchPointsInput').value);
+            const reason = document.getElementById('batchReasonInput').value;
+            if (isNaN(pts)) return;
+
+            addScore("all", pts, reason);
+            closeBatchModal();
+        }
+
+        // 全螢幕模式切換
+        function togglePresenterMode() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen();
+            } else {
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                }
+            }
+        }
+    </script>
+</body>
+</html>
